@@ -22,6 +22,9 @@ env/
 .DS_Store
 Thumbs.db
 
+# Local agent workspace
+.qwen/
+
 # Data files
 *.csv
 *.xlsx

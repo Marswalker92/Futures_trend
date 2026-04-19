@@ -17,6 +17,11 @@ env/
 # Environment variables
 .env
 .env.local
+.env.*
+!.env.example
+*.pem
+*.key
+*.secret
 
 # OS
 .DS_Store
@@ -30,3 +35,5 @@ Thumbs.db
 *.xlsx
 *.json
 *.db
+*.log
+output/

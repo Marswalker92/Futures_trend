@@ -6,6 +6,39 @@ from pathlib import Path
 
 from .models import IncomeRecord, PositionSnapshot
 
+HISTORY_FIELDNAMES = [
+    "timestamp",
+    "total_value",
+    "total_pnl",
+    "long_value",
+    "short_value",
+    "position_count",
+    "equity",
+    "wallet_balance",
+    "available_balance",
+    "realized_pnl",
+    "commission",
+    "funding_fee",
+    "net_realized_pnl",
+    "total_trading_pnl",
+    "income_row_count",
+]
+
+POSITION_FIELDNAMES = [
+    "timestamp",
+    "symbol",
+    "side",
+    "quantity",
+    "entry_price",
+    "mark_price",
+    "notional_value",
+    "unrealized_pnl",
+    "pnl_ratio",
+    "leverage",
+    "liquidation_price",
+    "margin_type",
+]
+
 
 def ensure_parent(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -48,25 +81,8 @@ def load_history(history_file: Path) -> list[dict[str, str]]:
 
 def write_history(history_file: Path, rows: list[dict[str, str]]) -> None:
     ensure_parent(history_file)
-    fieldnames = [
-        "timestamp",
-        "total_value",
-        "total_pnl",
-        "long_value",
-        "short_value",
-        "position_count",
-        "equity",
-        "wallet_balance",
-        "available_balance",
-        "realized_pnl",
-        "commission",
-        "funding_fee",
-        "net_realized_pnl",
-        "total_trading_pnl",
-        "income_row_count",
-    ]
     with history_file.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer = csv.DictWriter(handle, fieldnames=HISTORY_FIELDNAMES)
         writer.writeheader()
         writer.writerows(rows)
 
@@ -97,44 +113,36 @@ def upsert_history_row(
 
     merged = [row for row in history_rows if row.get("timestamp") != target]
     merged.append(serialized)
-    merged.sort(key=lambda item: item["timestamp"])
+    merged.sort(key=lambda item: item.get("timestamp", ""))
     return merged
+
+
+def serialize_position(item: PositionSnapshot, timestamp: str | None = None) -> dict[str, str]:
+    row = {
+        "symbol": item.symbol,
+        "side": item.side,
+        "quantity": f"{item.quantity:.8f}",
+        "entry_price": f"{item.entry_price:.8f}",
+        "mark_price": f"{item.mark_price:.8f}",
+        "notional_value": f"{item.notional_value:.8f}",
+        "unrealized_pnl": f"{item.unrealized_pnl:.8f}",
+        "pnl_ratio": f"{item.pnl_ratio:.8f}",
+        "leverage": f"{item.leverage:.2f}",
+        "liquidation_price": f"{item.liquidation_price:.8f}",
+        "margin_type": item.margin_type,
+    }
+    if timestamp is not None:
+        row = {"timestamp": timestamp, **row}
+    return row
 
 
 def write_positions_csv(positions_file: Path, positions: list[PositionSnapshot]) -> None:
     ensure_parent(positions_file)
-    fieldnames = [
-        "symbol",
-        "side",
-        "quantity",
-        "entry_price",
-        "mark_price",
-        "notional_value",
-        "unrealized_pnl",
-        "pnl_ratio",
-        "leverage",
-        "liquidation_price",
-        "margin_type",
-    ]
     with positions_file.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer = csv.DictWriter(handle, fieldnames=POSITION_FIELDNAMES[1:])
         writer.writeheader()
         for item in positions:
-            writer.writerow(
-                {
-                    "symbol": item.symbol,
-                    "side": item.side,
-                    "quantity": f"{item.quantity:.8f}",
-                    "entry_price": f"{item.entry_price:.8f}",
-                    "mark_price": f"{item.mark_price:.8f}",
-                    "notional_value": f"{item.notional_value:.8f}",
-                    "unrealized_pnl": f"{item.unrealized_pnl:.8f}",
-                    "pnl_ratio": f"{item.pnl_ratio:.8f}",
-                    "leverage": f"{item.leverage:.2f}",
-                    "liquidation_price": f"{item.liquidation_price:.8f}",
-                    "margin_type": item.margin_type,
-                }
-            )
+            writer.writerow(serialize_position(item))
 
 
 def load_position_history(position_history_file: Path) -> list[dict[str, str]]:
@@ -154,22 +162,7 @@ def upsert_position_history_rows(
     merged = [row for row in existing_rows if row.get("timestamp") != target]
 
     for item in positions:
-        merged.append(
-            {
-                "timestamp": target,
-                "symbol": item.symbol,
-                "side": item.side,
-                "quantity": f"{item.quantity:.8f}",
-                "entry_price": f"{item.entry_price:.8f}",
-                "mark_price": f"{item.mark_price:.8f}",
-                "notional_value": f"{item.notional_value:.8f}",
-                "unrealized_pnl": f"{item.unrealized_pnl:.8f}",
-                "pnl_ratio": f"{item.pnl_ratio:.8f}",
-                "leverage": f"{item.leverage:.2f}",
-                "liquidation_price": f"{item.liquidation_price:.8f}",
-                "margin_type": item.margin_type,
-            }
-        )
+        merged.append(serialize_position(item, target))
 
     merged.sort(key=lambda item: (item.get("timestamp", ""), item.get("symbol", "")))
     return merged
@@ -177,22 +170,8 @@ def upsert_position_history_rows(
 
 def write_position_history_csv(position_history_file: Path, rows: list[dict[str, str]]) -> None:
     ensure_parent(position_history_file)
-    fieldnames = [
-        "timestamp",
-        "symbol",
-        "side",
-        "quantity",
-        "entry_price",
-        "mark_price",
-        "notional_value",
-        "unrealized_pnl",
-        "pnl_ratio",
-        "leverage",
-        "liquidation_price",
-        "margin_type",
-    ]
     with position_history_file.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer = csv.DictWriter(handle, fieldnames=POSITION_FIELDNAMES)
         writer.writeheader()
         writer.writerows(rows)
 

@@ -31,18 +31,21 @@ def load_income_records(income_file: Path) -> list[IncomeRecord]:
         raw_time = (row.get("time") or "").strip()
         if not raw_time:
             continue
-        items.append(
-            IncomeRecord(
-                symbol=str(row.get("symbol", "")),
-                income_type=str(row.get("income_type", "")),
-                income=float(row.get("income", 0) or 0),
-                asset=str(row.get("asset", "")),
-                info=str(row.get("info", "")),
-                time=dt.datetime.fromisoformat(raw_time),
-                tran_id=str(row.get("tran_id", "")),
-                trade_id=str(row.get("trade_id", "")),
+        try:
+            items.append(
+                IncomeRecord(
+                    symbol=str(row.get("symbol", "")),
+                    income_type=str(row.get("income_type", "")),
+                    income=float(row.get("income", 0) or 0),
+                    asset=str(row.get("asset", "")),
+                    info=str(row.get("info", "")),
+                    time=dt.datetime.fromisoformat(raw_time),
+                    tran_id=str(row.get("tran_id", "")),
+                    trade_id=str(row.get("trade_id", "")),
+                )
             )
-        )
+        except (TypeError, ValueError):
+            continue
 
     items.sort(key=lambda item: item.time, reverse=True)
     return items

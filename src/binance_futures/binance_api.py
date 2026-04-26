@@ -14,6 +14,18 @@ from .models import AccountSnapshot, IncomeRecord, PositionSnapshot
 DEFAULT_BASE_URL = "https://fapi.binance.com"
 
 
+def expect_dict(payload: object, endpoint: str) -> dict[str, object]:
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Unexpected {endpoint} payload: {payload!r}")
+    return payload
+
+
+def expect_list(payload: object, endpoint: str) -> list[object]:
+    if not isinstance(payload, list):
+        raise RuntimeError(f"Unexpected {endpoint} payload: {payload!r}")
+    return payload
+
+
 def build_signed_params(params: dict[str, object], secret: str) -> str:
     query = urlencode(params, doseq=True)
     signature = hmac.new(secret.encode("utf-8"), query.encode("utf-8"), hashlib.sha256)
@@ -46,16 +58,21 @@ def fetch_positions(
     api_key: str,
     api_secret: str,
 ) -> list[PositionSnapshot]:
-    raw_positions = signed_get(
-        session,
-        base_url,
+    raw_positions = expect_list(
+        signed_get(
+            session,
+            base_url,
+            "/fapi/v2/positionRisk",
+            api_key,
+            api_secret,
+        ),
         "/fapi/v2/positionRisk",
-        api_key,
-        api_secret,
     )
 
     positions: list[PositionSnapshot] = []
     for raw in raw_positions:
+        if not isinstance(raw, dict):
+            raise RuntimeError(f"Unexpected position row: {raw!r}")
         quantity = float(raw["positionAmt"])
         if quantity == 0:
             continue
@@ -91,12 +108,15 @@ def fetch_account_snapshot(
     api_key: str,
     api_secret: str,
 ) -> AccountSnapshot:
-    raw_account = signed_get(
-        session,
-        base_url,
+    raw_account = expect_dict(
+        signed_get(
+            session,
+            base_url,
+            "/fapi/v2/account",
+            api_key,
+            api_secret,
+        ),
         "/fapi/v2/account",
-        api_key,
-        api_secret,
     )
     return AccountSnapshot(
         wallet_balance=float(raw_account["totalWalletBalance"]),
@@ -124,24 +144,27 @@ def fetch_income_history(
     for income_type in income_types:
         cursor = start_ms
         while True:
-            raw_rows = signed_get(
-                session,
-                base_url,
-                "/fapi/v1/income",
-                api_key,
-                api_secret,
-                params={
-                    "incomeType": income_type,
-                    "startTime": cursor,
-                    "limit": 1000,
-                },
+            raw_rows = expect_list(
+                signed_get(
+                    session,
+                    base_url,
+                    "/fapi/v1/income",
+                    api_key,
+                    api_secret,
+                    params={
+                        "incomeType": income_type,
+                        "startTime": cursor,
+                        "limit": 1000,
+                    },
+                ),
+                f"/fapi/v1/income:{income_type}",
             )
-            if not isinstance(raw_rows, list):
-                raise RuntimeError(f"Unexpected income payload for {income_type}: {raw_rows!r}")
             if not raw_rows:
                 break
 
             for raw in raw_rows:
+                if not isinstance(raw, dict):
+                    raise RuntimeError(f"Unexpected income row for {income_type}: {raw!r}")
                 tran_id = str(raw.get("tranId", ""))
                 unique_key = (income_type, tran_id or f"{raw.get('time', '')}:{raw.get('tradeId', '')}")
                 if unique_key in seen_keys:

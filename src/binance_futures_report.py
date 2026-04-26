@@ -79,6 +79,9 @@ def main() -> int:
     except requests.RequestException as exc:
         print(f"Network error while calling Binance API: {exc}", file=sys.stderr)
         return 2
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
 
     now = dt.datetime.now()
     income_records = merge_income_records(

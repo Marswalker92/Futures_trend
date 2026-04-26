@@ -75,8 +75,23 @@ def build_asset_groups(positions: list[PositionSnapshot]) -> list[dict[str, floa
     return rows
 
 
+def parse_chart_row(row: dict[str, str]) -> tuple[dt.datetime, float, float, float] | None:
+    try:
+        return (
+            dt.datetime.fromisoformat(row["timestamp"]),
+            float(row["total_value"]),
+            float(row["total_pnl"]),
+            float(row.get("equity", 0) or 0),
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def generate_chart(history_rows: list[dict[str, str]], chart_file: Path) -> None:
-    if not history_rows:
+    chart_points = [
+        parsed for row in history_rows if (parsed := parse_chart_row(row)) is not None
+    ]
+    if not chart_points:
         return
 
     try:
@@ -93,10 +108,10 @@ def generate_chart(history_rows: list[dict[str, str]], chart_file: Path) -> None
 
     rcParams["axes.unicode_minus"] = False
 
-    dates = [dt.datetime.fromisoformat(row["timestamp"]) for row in history_rows]
-    total_values = [float(row["total_value"]) for row in history_rows]
-    total_pnls = [float(row["total_pnl"]) for row in history_rows]
-    equities = [float(row.get("equity", 0) or 0) for row in history_rows]
+    dates = [point[0] for point in chart_points]
+    total_values = [point[1] for point in chart_points]
+    total_pnls = [point[2] for point in chart_points]
+    equities = [point[3] for point in chart_points]
 
     ensure_parent(chart_file)
     fig, ax1 = plt.subplots(figsize=(12, 6.5), constrained_layout=True)
